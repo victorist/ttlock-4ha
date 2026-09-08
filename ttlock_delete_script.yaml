@@ -150,9 +150,48 @@ sequence:
             {% endfor %}
             {{ ns.ids | to_json }}
 
+      # Подсчет количества найденных истёкших кодов
+      - variables:
+          ids_list: "{{ expired_ids | from_json if expired_ids is string else expired_ids }}"
+          ids_count: "{{ ids_list | length }}"
+
+      # Отображение информационного окна о процессе очистки
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "⏳ TTLock — очистка PIN-кодов"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⏳ {{ selected_name }}
+
+                  Идёт удаление истёкших PIN-кодов (**{{ ids_count }}** шт.)...
+
+                  ⏳ Отправка команд в замок и синхронизация с облаком TTLock...  
+                  Пожалуйста, подождите. Список автоматически обновится по завершении.
+        else:
+          - action: browser_mod.popup
+            data:
+              title: "⏳ TTLock — очистка PIN-кодов"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⏳ {{ selected_name }}
+
+                  Идёт удаление истёкших PIN-кодов (**{{ ids_count }}** шт.)...
+
+                  ⏳ Отправка команд в замок и синхронизация с облаком TTLock...  
+                  Пожалуйста, подождите. Список автоматически обновится по завершении.
+
       # Удаление найденных истёкших паролей по очереди
       - repeat:
-          for_each: "{{ expired_ids | from_json if expired_ids is string else expired_ids }}"
+          for_each: "{{ ids_list }}"
           sequence:
             - action: ttlock.delete_passcode
               continue_on_error: true
@@ -161,19 +200,7 @@ sequence:
               data:
                 passcode_id: "{{ repeat.item }}"
 
-      # Очистка модального контекста
-      - if:
-          - condition: template
-            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
-        then:
-          - action: browser_mod.close_popup
-            data:
-              browser_id: "{{ browser_id }}"
-            continue_on_error: true
-        else:
-          - action: browser_mod.close_popup
-            continue_on_error: true
-
+      # Пауза для гарантии завершения синхронизации облачного кэша TTLock
       - delay:
           seconds: 2
 
