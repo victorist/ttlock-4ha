@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение чистой HTML-таблицы со всеми паролями замка
+  # 4. Отображение всех паролей замка в HTML-таблице
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -58,26 +58,26 @@ sequence:
             {% set ns = namespace(items=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
-                {% set target_data = resp.get(lock_entity) %}
-                {% if target_data is defined and target_data %}
-                  {% if target_data is mapping and 'passcodes' in target_data %}
-                    {% set raw = target_data['passcodes'] %}
-                  {% else %}
-                    {% set raw = target_data %}
-                  {% endif %}
-                {% elif 'passcodes' in resp %}
-                  {% set raw = resp['passcodes'] %}
+                {# 1. Прямая проверка ключа passcodes в resp #}
+                {% if 'passcodes' in resp and resp['passcodes'] is iterable and not resp['passcodes'] is string %}
+                  {% set ns.items = resp['passcodes'] %}
+                {# 2. Прямая проверка точного совпадения lock_entity в resp #}
+                {% elif lock_entity in resp and resp[lock_entity] is mapping and 'passcodes' in resp[lock_entity] %}
+                  {% set ns.items = resp[lock_entity]['passcodes'] %}
+                {% elif lock_entity in resp and resp[lock_entity] is iterable and not resp[lock_entity] is string %}
+                  {% set ns.items = resp[lock_entity] %}
+                {# 3. Сканирование всех элементов resp на случай различия в имени сущностей #}
                 {% else %}
-                  {% set raw = resp %}
-                {% endif %}
-
-                {% if raw is mapping %}
-                  {% set ns.items = raw.values() | list %}
-                {% elif raw is iterable and not raw is string %}
-                  {% set ns.items = raw | list %}
+                  {% for key, val in resp.items() %}
+                    {% if val is mapping and 'passcodes' in val and val['passcodes'] is iterable and not val['passcodes'] is string %}
+                      {% set ns.items = val['passcodes'] %}
+                    {% elif val is iterable and not val is string and val | length > 0 and ns.items | length == 0 %}
+                      {% set ns.items = val %}
+                    {% endif %}
+                  {% endfor %}
                 {% endif %}
               {% elif resp is iterable and not resp is string %}
-                {% set ns.items = resp | list %}
+                {% set ns.items = resp %}
               {% endif %}
             {% endif %}
 
