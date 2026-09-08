@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение красивой таблицы во всплывающем окне (обязательно с | для сохранения переносов строк \n)
+  # 4. Отображение чистой HTML-таблицы во всплывающем окне (100% совместимо с Browser Mod)
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -70,22 +70,37 @@ sequence:
             {% endif %}
 
             {% if items | length > 0 %}
-            | Имя | PIN-код | Срок действия | Статус |
-            | :--- | :---: | :---: | :---: |
-            {% for item in items %}
-            {% set p_name = item.name | default('Без имени') %}
-            {% set p_code = item.passcode | default(item.code | default('—')) %}
-            {% set p_type = item.type | default('') %}
-            {% set p_expired = item.expired | default(false) %}
-            {% set end_val = item.end_date | default('') | string %}
-            {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val %}
-              {% set end_str = 'Постоянный' %}
+            <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
+              <thead>
+                <tr style="border-bottom: 2px solid #555; text-align: left;">
+                  <th style="padding: 6px 4px;">Имя</th>
+                  <th style="padding: 6px 4px; text-align: center;">PIN-код</th>
+                  <th style="padding: 6px 4px;">Срок действия</th>
+                  <th style="padding: 6px 4px; text-align: center;">Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                {% set p_name = item.name if item.name is defined and item.name else (item.get('name') if item is mapping else 'Без имени') %}
+                {% set p_code = item.passcode if item.passcode is defined and item.passcode else (item.get('passcode') if item is mapping else '—') %}
+                {% set p_type = item.type if item.type is defined else (item.get('type') if item is mapping else '') %}
+                {% set p_expired = item.expired if item.expired is defined else (item.get('expired', false) if item is mapping else false) %}
+                {% set end_val = (item.end_date if item.end_date is defined else (item.get('end_date', '') if item is mapping else '')) | string %}
+                {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val %}
+                  {% set end_str = 'Постоянный' %}
+                {% else %}
+                  {% set end_str = as_timestamp(end_val) | timestamp_custom('%d.%m.%Y %H:%M', default=end_val) %}
+                {% endif %}
+                {% set status = '🔴 Истёк' if p_expired else '🟢 Активен' %}
+                <tr style="border-bottom: 1px solid #333;">
+                  <td style="padding: 6px 4px;"><b>{{ p_name }}</b></td>
+                  <td style="padding: 6px 4px; text-align: center;"><code>{{ p_code }}</code></td>
+                  <td style="padding: 6px 4px;">{{ end_str }}</td>
+                  <td style="padding: 6px 4px; text-align: center;">{{ status }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
             {% else %}
-              {% set end_str = as_timestamp(end_val) | timestamp_custom('%d.%m.%Y %H:%M', default=end_val) %}
-            {% endif %}
-            {% set status = '🔴 Истёк' if p_expired else '🟢 Активен' %}
-            | **{{ p_name }}** | `{{ p_code }}` | {{ end_str }} | {{ status }} |
-            {% endfor %}
-            {% else %}
-            ⚠️ **PIN-коды не найдены** или замок находится офлайн.
+            <p>⚠️ <b>PIN-коды не найдены</b> или замок находится офлайн.</p>
             {% endif %}
