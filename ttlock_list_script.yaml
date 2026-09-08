@@ -24,7 +24,7 @@ sequence:
         {{ state_attr(lock_entity, 'friendly_name') | default(lock_entity) }}
       lock_is_online: "{{ states(lock_entity) not in ['unavailable', 'unknown'] }}"
 
-  # 2. ВЕТКА 1: Замок недоступен (Офлайн)
+  # 2. ВЕТКА 1: Замок недоступен (Офлайн) -> вывод предупреждения (1 вызов popup)
   - if:
       - condition: template
         value_template: "{{ not lock_is_online }}"
@@ -47,25 +47,11 @@ sequence:
 
                   Запрос списка PIN-кодов невозможен. Проверьте подключение шлюза TTLock к сети.
 
-  # 3. ВЕТКА 2: Замок доступен (Онлайн) -> запрашиваем список кодов
+  # 3. ВЕТКА 2: Замок доступен (Онлайн) -> запрашиваем список кодов и открываем итоговый popup (1 вызов popup)
   - if:
       - condition: template
         value_template: "{{ lock_is_online }}"
     then:
-      # Индикатор загрузки
-      - if:
-          - condition: template
-            value_template: "{{ browser_id | default('') | length > 0 }}"
-        then:
-          - action: browser_mod.popup
-            data:
-              browser_id: "{{ browser_id }}"
-              title: "🔑 Загрузка PIN-кодов..."
-              adaptive: true
-              content:
-                type: markdown
-                content: "⏳ Запрашиваем список PIN-кодов для **{{ selected_name }}**..."
-
       # Запрос к API TTLock
       - action: ttlock.list_passcodes
         continue_on_error: true
@@ -73,7 +59,7 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Вывод HTML-таблицы с паролями
+      # Однократный вывод итоговой HTML-таблицы с паролями (без промежуточного popup загрузки, мешающего Browser Mod)
       - if:
           - condition: template
             value_template: "{{ browser_id | default('') | length > 0 }}"
