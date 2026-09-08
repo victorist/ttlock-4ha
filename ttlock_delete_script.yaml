@@ -159,7 +159,6 @@ sequence:
                 entity_id: "{{ lock_entity }}"
               data:
                 passcode_id: "{{ repeat.item }}"
-                keyboard_pwd_id: "{{ repeat.item }}"
 
       # Очистка модального контекста
       - if:
