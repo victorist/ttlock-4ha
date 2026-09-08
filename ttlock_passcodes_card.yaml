@@ -27,5 +27,3 @@ tap_action:
 
       right_button_action:
         action: script.ttlock_pokazat_spisok_pin_kodov
-        data:
-          browser_id: THIS
