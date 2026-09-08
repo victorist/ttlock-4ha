@@ -175,7 +175,7 @@ sequence:
             continue_on_error: true
 
       - delay:
-          milliseconds: 500
+          seconds: 2
 
       # Перезапуск скрипта показа списка кодов для автоматического обновления таблицы
       - action: script.ttlock_pokazat_spisok_pin_kodov

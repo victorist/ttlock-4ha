@@ -275,12 +275,11 @@ sequence:
                   adaptive: true
                   right_button: "🗑️ Удалить истёкшие ({{ expired_count }})"
                   right_button_variant: danger
-                  right_button_appearance: filled
                   right_button_action:
                     action: script.ttlock_udalit_istekshie_pin_kody
                     data:
                       lock_entity: "{{ lock_entity }}"
-                      browser_id: THIS
+                      browser_id: "{{ browser_id if (browser_id is defined and browser_id and browser_id != 'THIS') else 'THIS' }}"
                   content: "{{ table_html }}"
             else:
               - action: browser_mod.popup
@@ -294,7 +293,7 @@ sequence:
                     action: script.ttlock_udalit_istekshie_pin_kody
                     data:
                       lock_entity: "{{ lock_entity }}"
-                      browser_id: THIS
+                      browser_id: "{{ browser_id if (browser_id is defined and browser_id and browser_id != 'THIS') else 'THIS' }}"
                   content: "{{ table_html }}"
         else:
           - if:
