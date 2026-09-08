@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение списка кодов с безопасной проверкой типов данных
+  # 4. Отображение списка кодов в HTML-таблице
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -58,31 +58,43 @@ sequence:
             {% set ns = namespace(passcodes=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
-                {% if 'passcodes' in resp and resp['passcodes'] is iterable and not resp['passcodes'] is string %}
-                  {% set ns.passcodes = resp['passcodes'] %}
-                {% else %}
-                  {% for k1, v1 in resp.items() %}
-                    {% if v1 is mapping %}
-                      {% if 'passcodes' in v1 and v1['passcodes'] is iterable and not v1['passcodes'] is string %}
-                        {% set ns.passcodes = v1['passcodes'] %}
-                      {% elif 'passcode' in v1 or 'id' in v1 or 'name' in v1 %}
-                        {% set ns.passcodes = ns.passcodes + [v1] %}
-                      {% endif %}
-                    {% elif v1 is iterable and not v1 is string %}
-                      {% for sub in v1 %}
-                        {% if sub is mapping %}
-                          {% set ns.passcodes = ns.passcodes + [sub] %}
+                {# Ответ вида {"passcodes": {"lock.b14_116": [...]}} #}
+                {% if 'passcodes' in resp %}
+                  {% set raw = resp['passcodes'] %}
+                  {% if raw is mapping %}
+                    {% set target = raw.get(lock_entity) %}
+                    {% if target is iterable and not target is string %}
+                      {% set ns.passcodes = target %}
+                    {% else %}
+                      {% for k, v in raw.items() %}
+                        {% if v is iterable and not v is string and ns.passcodes | length == 0 %}
+                          {% set ns.passcodes = v %}
                         {% endif %}
                       {% endfor %}
+                    {% endif %}
+                  {% elif raw is iterable and not raw is string %}
+                    {% set ns.passcodes = raw %}
+                  {% endif %}
+                {# Ответ вида {"lock.b14_116": {"passcodes": [...]}} #}
+                {% elif lock_entity in resp %}
+                  {% set raw = resp[lock_entity] %}
+                  {% if raw is mapping and 'passcodes' in raw and raw['passcodes'] is iterable and not raw['passcodes'] is string %}
+                    {% set ns.passcodes = raw['passcodes'] %}
+                  {% elif raw is iterable and not raw is string %}
+                    {% set ns.passcodes = raw %}
+                  {% endif %}
+                {# Прямой поиск вложенного списка паролей #}
+                {% else %}
+                  {% for k, v in resp.items() %}
+                    {% if v is mapping and 'passcodes' in v and v['passcodes'] is iterable and not v['passcodes'] is string %}
+                      {% set ns.passcodes = v['passcodes'] %}
+                    {% elif v is iterable and not v is string and ns.passcodes | length == 0 %}
+                      {% set ns.passcodes = v %}
                     {% endif %}
                   {% endfor %}
                 {% endif %}
               {% elif resp is iterable and not resp is string %}
-                {% for sub in resp %}
-                  {% if sub is mapping %}
-                    {% set ns.passcodes = ns.passcodes + [sub] %}
-                  {% endif %}
-                {% endfor %}
+                {% set ns.passcodes = resp %}
               {% endif %}
             {% endif %}
 
