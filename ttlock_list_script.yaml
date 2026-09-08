@@ -88,9 +88,9 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Генерация HTML-структуры таблицы с паролями и подсчет истёкших кодов
+      # Генерация структуры данных с нативным словарем Python
       - variables:
-          passcodes_data: >-
+          passcodes_data:
             {% set ns = namespace(passcodes=[], expired_count=0) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
