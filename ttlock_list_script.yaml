@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение списка кодов с универсальным извлечением и разделом отладки
+  # 4. Отображение списка кодов с безопасной проверкой типов данных
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -62,15 +62,11 @@ sequence:
                   {% set ns.passcodes = resp['passcodes'] %}
                 {% else %}
                   {% for k1, v1 in resp.items() %}
-                    {% if v1 is mapping %}
-                      {% if 'passcodes' in v1 and v1['passcodes'] is iterable and not v1['passcodes'] is string %}
-                        {% set ns.passcodes = v1['passcodes'] %}
-                      {% elif 'passcode' in v1 or 'id' in v1 or 'name' in v1 %}
-                        {% set ns.passcodes = ns.passcodes + [v1] %}
-                      {% endif %}
+                    {% if v1 is mapping and 'passcodes' in v1 and v1['passcodes'] is iterable and not v1['passcodes'] is string %}
+                      {% set ns.passcodes = v1['passcodes'] %}
                     {% elif v1 is iterable and not v1 is string %}
                       {% for sub in v1 %}
-                        {% if sub is mapping and ('passcode' in sub or 'id' in sub or 'name' in sub) %}
+                        {% if sub is mapping %}
                           {% set ns.passcodes = ns.passcodes + [sub] %}
                         {% endif %}
                       {% endfor %}
@@ -79,7 +75,7 @@ sequence:
                 {% endif %}
               {% elif resp is iterable and not resp is string %}
                 {% for sub in resp %}
-                  {% if sub is mapping and ('passcode' in sub or 'id' in sub or 'name' in sub) %}
+                  {% if sub is mapping %}
                     {% set ns.passcodes = ns.passcodes + [sub] %}
                   {% endif %}
                 {% endfor %}
@@ -98,11 +94,20 @@ sequence:
               </thead>
               <tbody>
                 {% for item in ns.passcodes %}
-                {% set p_name = item.get('name') if item.get('name') else 'Без имени' %}
-                {% set p_code = item.get('passcode') if item.get('passcode') else (item.get('code') if item.get('code') else '—') %}
-                {% set p_type = item.get('type', '') %}
-                {% set p_expired = item.get('expired', false) %}
-                {% set end_val = item.get('end_date', '') | string %}
+                {% if item is mapping %}
+                  {% set p_name = item.get('name') if item.get('name') else 'Без имени' %}
+                  {% set p_code = item.get('passcode') if item.get('passcode') else (item.get('code') if item.get('code') else '—') %}
+                  {% set p_type = item.get('type', '') %}
+                  {% set p_expired = item.get('expired', false) %}
+                  {% set end_val = item.get('end_date', '') | string %}
+                {% else %}
+                  {% set p_name = 'PIN' %}
+                  {% set p_code = item | string %}
+                  {% set p_type = '' %}
+                  {% set p_expired = false %}
+                  {% set end_val = '' %}
+                {% endif %}
+
                 {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val or end_val == 'None' %}
                   {% set end_str = 'Постоянный' %}
                 {% else %}
@@ -124,5 +129,5 @@ sequence:
 
             <details style="margin-top: 15px; color: #888;">
               <summary style="cursor: pointer; font-size: 0.85em;">🔍 Отладка ответа API (JSON)</summary>
-              <pre style="font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px;">{{ resp | to_json(pretty=True) }}</pre>
+              <pre style="font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px;">{{ resp | to_json(pretty=True) if resp is defined else 'Ответ не получен' }}</pre>
             </details>
