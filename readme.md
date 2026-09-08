@@ -2,7 +2,7 @@
 
 [English Version](file:///Users/vistratov/dev_ha/ttlock/readme.md) | [Русская версия](file:///Users/vistratov/dev_ha/ttlock/readme_ru.md)
 
-This repository contains a solution for managing and generating temporary PIN passcodes for TTLock smart locks in Home Assistant. It features automatic device availability verification and explicit passcode validation directly from the lock entries.
+This repository contains a solution for managing, creating, and viewing temporary and permanent PIN passcodes for TTLock smart locks in Home Assistant. It features automatic device availability verification and explicit passcode validation directly from the lock entries.
 
 ---
 
@@ -10,9 +10,10 @@ This repository contains a solution for managing and generating temporary PIN pa
 
 TTLock management relies on the `TTLock` integration (the `hass-ttlock` custom component).
 
-The system consists of two main components:
-1. **Control Dashboard Card (`ttlock_card.yaml`)**: Added to the Home Assistant dashboard. Clicking the button opens a popup PIN creation form powered by **Browser Mod**.
-2. **PIN Passcode Script (`ttlock_script.yaml`)**: Receives parameters from the form, converts timestamps/dates, checks lock availability, dispatches passcode creation commands, queries passcodes via `ttlock.list_passcodes` for verification, and alerts the user on each lock's status.
+The system consists of three main modules:
+1. **PIN Creation Dashboard Card (`ttlock_card.yaml`)**: Added to the Home Assistant dashboard. Clicking the button opens a popup PIN creation form powered by **Browser Mod**.
+2. **PIN Creation Script (`ttlock_script.yaml`)**: Receives parameters from the form, converts timestamps/dates, checks lock availability, dispatches passcode creation commands, queries passcodes via `ttlock.list_passcodes` for verification, and alerts the user on each lock's status.
+3. **Passcode List Viewing Card & Script (`ttlock_passcodes_card.yaml` and `ttlock_list_script.yaml`)**: Allows selecting any lock and displaying a clean HTML table of all registered passcodes, their statuses (`🟢 Active` / `🔴 Expired`), and validity periods.
 
 ---
 
@@ -21,7 +22,7 @@ The system consists of two main components:
 * [`ttlock_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_card.yaml) — PIN creation card configuration powered by `browser_mod.popup`.
 * [`ttlock_passcodes_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_passcodes_card.yaml) — Lock passcode list viewer card configuration powered by `browser_mod.popup`.
 * [`ttlock_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_script.yaml) — Core Home Assistant script for PIN passcode generation, multi-lock cascading, and verification.
-* [`ttlock_list_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_list_script.yaml) — Home Assistant script for querying and rendering the active passcodes table for a selected lock.
+* [`ttlock_list_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_list_script.yaml) — Home Assistant script for querying and rendering the active passcodes HTML table for a selected lock.
 * [`readme.md`](file:///Users/vistratov/dev_ha/ttlock/readme.md) — Main English documentation and technical guide.
 * [`readme_ru.md`](file:///Users/vistratov/dev_ha/ttlock/readme_ru.md) — Russian documentation version.
 
@@ -29,6 +30,7 @@ The system consists of two main components:
 
 ## 🚀 Key Features
 
+* **Passcode List Viewer**: One-click retrieval and display of all active/expired lock passcodes (owner name, PIN code, validity window, status) inside a `browser_mod.popup` dialog.
 * **Automatic Date/Timestamp Conversion**: Supports ISO date strings as well as millisecond Unix timestamps from `browser_mod`, automatically converting them to `YYYY-MM-DD HH:MM:SS` format.
 * **Pre-Execution Availability Checks (Online / Offline)**: Before sending commands, the script verifies lock entity states in Home Assistant (`states(lock_entity) not in ['unavailable', 'unknown']`). If a lock is offline/disconnected from its gateway, passcode creation is skipped and the lock receives the status `⚠️ Lock Unavailable`.
 * **Explicit Passcode Verification (list_passcodes)**: Instead of assuming creation success, the script calls `ttlock.list_passcodes` (returning a `response_variable`), reads active lock passcodes, and confirms the PIN's physical presence.
@@ -170,3 +172,20 @@ The script generates two notification streams:
    - Provides live feedback on execution starts, delays, offline statuses, and final results.
 2. **Persistent System Notification (`persistent_notification.create`)**:
    - Saves the aggregated outcome across all locks in the Home Assistant notification panel (`notification_id: ttlock_pin_result`).
+
+---
+
+### 6. Lock Passcode Viewer (`ttlock_passcodes_card` & `ttlock_list_script`)
+
+For easy inspection of all active and expired PIN passcodes:
+
+1. **Dashboard Card (`ttlock_passcodes_card.yaml`)**:
+   - A dedicated dashboard button that opens a lock selection popup form.
+   - Triggers `ttlock_list_script.yaml` upon lock selection.
+
+2. **Data Processing & Formatting (`ttlock_list_script.yaml`)**:
+   - Requests data via `ttlock.list_passcodes`.
+   - Unpacks the nested 2-level API response structure (`resp["passcodes"][lock_entity]`).
+   - Uses an **explicit HTML table** (`<table>`, `<tr>`, `<td>`) instead of Markdown tables to prevent line-wrapping/folding issues in `browser_mod.popup`.
+   - Identifies permanent passcodes (`type: permanent` or 1970 timestamp year) and formats periodic expiration dates into readable `DD.MM.YYYY HH:MM`.
+   - Includes a collapsible **"🔍 API Response Debug (JSON)"** section for troubleshooting API payload structures.
