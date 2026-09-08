@@ -29,8 +29,13 @@ sequence:
       - condition: template
         value_template: "{{ not lock_is_online }}"
     then:
+      # Небольшая пауза 800мс для очистки DOM-контекста первого диалога в Chromium / Yandex Browser
+      - delay:
+          milliseconds: 800
+
       - action: browser_mod.popup
         data:
+          browser_id: "{{ browser_id if browser_id is defined and browser_id else 'THIS' }}"
           title: "⚠️ TTLock — замок недоступен"
           adaptive: true
           content:
@@ -54,9 +59,14 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Однократный вывод итоговой HTML-таблицы с паролями на активном экране пользователя
+      # Небольшая пауза 800мс для гарантированного завершения закрытия первого диалога в Yandex Browser / Chromium
+      - delay:
+          milliseconds: 800
+
+      # Вывод итоговой HTML-таблицы с паролями
       - action: browser_mod.popup
         data:
+          browser_id: "{{ browser_id if browser_id is defined and browser_id else 'THIS' }}"
           title: "🔑 PIN-коды: {{ selected_name }}"
           adaptive: true
           content: |
