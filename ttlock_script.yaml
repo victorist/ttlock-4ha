@@ -187,14 +187,14 @@ sequence:
             {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
             {% for item in items %}
               {% if item is mapping %}
-                {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                {% if item.get('passcode') | string == (target_pin | string) or item.get('name') | string == (passcode_name | string) %}
                   {% set ns.ok = true %}
                 {% endif %}
-              {% elif item | string == target_pin %}
+              {% elif item | string == (target_pin | string) %}
                 {% set ns.ok = true %}
               {% endif %}
             {% endfor %}
-            {% if not ns.ok and target_pin in (resp_main | string) %}
+            {% if not ns.ok and (target_pin | string) in (resp_main | string) %}
               {% set ns.ok = true %}
             {% endif %}
           {% endif %}
@@ -284,14 +284,14 @@ sequence:
                 {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
                 {% for item in items %}
                   {% if item is mapping %}
-                    {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                    {% if item.get('passcode') | string == (target_pin | string) or item.get('name') | string == (passcode_name | string) %}
                       {% set ns.ok = true %}
                     {% endif %}
-                  {% elif item | string == target_pin %}
+                  {% elif item | string == (target_pin | string) %}
                     {% set ns.ok = true %}
                   {% endif %}
                 {% endfor %}
-                {% if not ns.ok and target_pin in (resp_p1 | string) %}
+                {% if not ns.ok and (target_pin | string) in (resp_p1 | string) %}
                   {% set ns.ok = true %}
                 {% endif %}
               {% endif %}
@@ -412,14 +412,14 @@ sequence:
                 {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
                 {% for item in items %}
                   {% if item is mapping %}
-                    {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                    {% if item.get('passcode') | string == (target_pin | string) or item.get('name') | string == (passcode_name | string) %}
                       {% set ns.ok = true %}
                     {% endif %}
-                  {% elif item | string == target_pin %}
+                  {% elif item | string == (target_pin | string) %}
                     {% set ns.ok = true %}
                   {% endif %}
                 {% endfor %}
-                {% if not ns.ok and target_pin in (resp_p2 | string) %}
+                {% if not ns.ok and (target_pin | string) in (resp_p2 | string) %}
                   {% set ns.ok = true %}
                 {% endif %}
               {% endif %}
@@ -504,14 +504,14 @@ sequence:
                 {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
                 {% for item in items %}
                   {% if item is mapping %}
-                    {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                    {% if item.get('passcode') | string == (target_pin | string) or item.get('name') | string == (passcode_name | string) %}
                       {% set ns.ok = true %}
                     {% endif %}
-                  {% elif item | string == target_pin %}
+                  {% elif item | string == (target_pin | string) %}
                     {% set ns.ok = true %}
                   {% endif %}
                 {% endfor %}
-                {% if not ns.ok and target_pin in (resp_kalitka | string) %}
+                {% if not ns.ok and (target_pin | string) in (resp_kalitka | string) %}
                   {% set ns.ok = true %}
                 {% endif %}
               {% endif %}
