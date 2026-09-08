@@ -21,6 +21,7 @@
 * [`ttlock_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_card.yaml) — конфигурация карточки создания PIN-кода через `browser_mod.popup`.
 * [`ttlock_passcodes_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_passcodes_card.yaml) — конфигурация карточки запроса и просмотра списка PIN-кодов замка через `browser_mod.popup`.
 * [`ttlock_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_script.yaml) — основной скрипт Home Assistant для генерации PIN-кода, каскадной обработки замков и верификации.
+* [`ttlock_list_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_list_script.yaml) — скрипт Home Assistant для получения и отображения таблицы текущих PIN-кодов выбранного замка.
 * [`readme.md`](file:///Users/vistratov/dev_ha/ttlock/readme.md) — документация проекта на английском языке.
 * [`readme_ru.md`](file:///Users/vistratov/dev_ha/ttlock/readme_ru.md) — документация проекта на русском языке.
 

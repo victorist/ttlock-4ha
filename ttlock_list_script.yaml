@@ -1,0 +1,85 @@
+alias: "TTLock — Показать список PIN-кодов"
+description: "Получает список PIN-кодов замка и отображает их во всплывающем окне Browser Mod"
+
+fields:
+  lock_entity:
+    name: "Замок"
+    required: true
+    selector:
+      entity:
+        filter:
+          - integration: ttlock
+            domain: lock
+
+  browser_id:
+    name: "Browser ID"
+    required: false
+    selector:
+      text:
+
+sequence:
+  # 1. Определение имени замка
+  - variables:
+      selected_name: >-
+        {{ state_attr(lock_entity, 'friendly_name') | default(lock_entity) }}
+
+  # 2. Индикатор загрузки во всплывающем окне
+  - if:
+      - condition: template
+        value_template: "{{ browser_id | default('') | length > 0 }}"
+    then:
+      - action: browser_mod.popup
+        data:
+          browser_id: "{{ browser_id }}"
+          title: "🔑 Загрузка PIN-кодов..."
+          adaptive: true
+          content:
+            type: markdown
+            content: "⏳ Запрашиваем список PIN-кодов для **{{ selected_name }}**..."
+
+  # 3. Запрос списка PIN-кодов из интеграции TTLock
+  - action: ttlock.list_passcodes
+    continue_on_error: true
+    target:
+      entity_id: "{{ lock_entity }}"
+    response_variable: resp
+
+  # 4. Отображение списка кодов во всплывающем окне
+  - if:
+      - condition: template
+        value_template: "{{ browser_id | default('') | length > 0 }}"
+    then:
+      - action: browser_mod.popup
+        data:
+          browser_id: "{{ browser_id }}"
+          title: "🔑 PIN-коды: {{ selected_name }}"
+          adaptive: true
+          content:
+            type: markdown
+            content: >-
+              {% set ns = namespace(items=[]) %}
+              {% if resp is defined and resp %}
+                {% set data = resp.get(lock_entity, resp) if resp is mapping else resp %}
+                {% set raw = data.get('passcodes', data) if data is mapping else data %}
+                {% if raw is mapping %}
+                  {% set ns.items = raw.values() | list %}
+                {% elif raw is iterable and not raw is string %}
+                  {% set ns.items = raw %}
+                {% endif %}
+              {% endif %}
+
+              {% if ns.items | length > 0 %}
+              | Имя | PIN-код | Срок действия | Статус |
+              | :--- | :---: | :---: | :---: |
+              {% for item in ns.items %}
+              {% set p_name = item.get('name', 'Без имени') if item is mapping else 'PIN' %}
+              {% set p_code = item.get('passcode', item.get('code', '—')) if item is mapping else item %}
+              {% set p_expired = item.get('expired', false) if item is mapping else false %}
+              {% set end_raw = item.get('end_date', 0) if item is mapping else 0 %}
+              {% set end_str = (end_raw | int / 1000) | timestamp_custom('%d.%m.%Y %H:%M') if end_raw | int(0) > 100000000000 else (end_raw if end_raw else 'Постоянный') %}
+              {% set status = '🔴 Истёк' if p_expired else '🟢 Активен' %}
+              | **{{ p_name }}** | `{{ p_code }}` | {{ end_str }} | {{ status }} |
+              {% endfor %}
+              {% else %}
+              ⚠️ **PIN-коды не найдены** или замок офлайн.
+              {% endif %}

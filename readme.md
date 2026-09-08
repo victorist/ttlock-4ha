@@ -21,6 +21,7 @@ The system consists of two main components:
 * [`ttlock_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_card.yaml) — PIN creation card configuration powered by `browser_mod.popup`.
 * [`ttlock_passcodes_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_passcodes_card.yaml) — Lock passcode list viewer card configuration powered by `browser_mod.popup`.
 * [`ttlock_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_script.yaml) — Core Home Assistant script for PIN passcode generation, multi-lock cascading, and verification.
+* [`ttlock_list_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_list_script.yaml) — Home Assistant script for querying and rendering the active passcodes table for a selected lock.
 * [`readme.md`](file:///Users/vistratov/dev_ha/ttlock/readme.md) — Main English documentation and technical guide.
 * [`readme_ru.md`](file:///Users/vistratov/dev_ha/ttlock/readme_ru.md) — Russian documentation version.
 
