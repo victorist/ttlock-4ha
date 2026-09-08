@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение всех паролей замка в HTML-таблице
+  # 4. Отображение списка кодов с универсальным извлечением и разделом отладки
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -55,33 +55,38 @@ sequence:
           title: "🔑 PIN-коды: {{ selected_name }}"
           adaptive: true
           content: |
-            {% set ns = namespace(items=[]) %}
+            {% set ns = namespace(passcodes=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
-                {# 1. Прямая проверка ключа passcodes в resp #}
                 {% if 'passcodes' in resp and resp['passcodes'] is iterable and not resp['passcodes'] is string %}
-                  {% set ns.items = resp['passcodes'] %}
-                {# 2. Прямая проверка точного совпадения lock_entity в resp #}
-                {% elif lock_entity in resp and resp[lock_entity] is mapping and 'passcodes' in resp[lock_entity] %}
-                  {% set ns.items = resp[lock_entity]['passcodes'] %}
-                {% elif lock_entity in resp and resp[lock_entity] is iterable and not resp[lock_entity] is string %}
-                  {% set ns.items = resp[lock_entity] %}
-                {# 3. Сканирование всех элементов resp на случай различия в имени сущностей #}
+                  {% set ns.passcodes = resp['passcodes'] %}
                 {% else %}
-                  {% for key, val in resp.items() %}
-                    {% if val is mapping and 'passcodes' in val and val['passcodes'] is iterable and not val['passcodes'] is string %}
-                      {% set ns.items = val['passcodes'] %}
-                    {% elif val is iterable and not val is string and val | length > 0 and ns.items | length == 0 %}
-                      {% set ns.items = val %}
+                  {% for k1, v1 in resp.items() %}
+                    {% if v1 is mapping %}
+                      {% if 'passcodes' in v1 and v1['passcodes'] is iterable and not v1['passcodes'] is string %}
+                        {% set ns.passcodes = v1['passcodes'] %}
+                      {% elif 'passcode' in v1 or 'id' in v1 or 'name' in v1 %}
+                        {% set ns.passcodes = ns.passcodes + [v1] %}
+                      {% endif %}
+                    {% elif v1 is iterable and not v1 is string %}
+                      {% for sub in v1 %}
+                        {% if sub is mapping and ('passcode' in sub or 'id' in sub or 'name' in sub) %}
+                          {% set ns.passcodes = ns.passcodes + [sub] %}
+                        {% endif %}
+                      {% endfor %}
                     {% endif %}
                   {% endfor %}
                 {% endif %}
               {% elif resp is iterable and not resp is string %}
-                {% set ns.items = resp %}
+                {% for sub in resp %}
+                  {% if sub is mapping and ('passcode' in sub or 'id' in sub or 'name' in sub) %}
+                    {% set ns.passcodes = ns.passcodes + [sub] %}
+                  {% endif %}
+                {% endfor %}
               {% endif %}
             {% endif %}
 
-            {% if ns.items | length > 0 %}
+            {% if ns.passcodes | length > 0 %}
             <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
               <thead>
                 <tr style="border-bottom: 2px solid #555; text-align: left;">
@@ -92,12 +97,12 @@ sequence:
                 </tr>
               </thead>
               <tbody>
-                {% for item in ns.items %}
-                {% set p_name = item.get('name') if item is mapping and item.get('name') else (item.name if item.name is defined and item.name else 'Без имени') %}
-                {% set p_code = item.get('passcode') if item is mapping and item.get('passcode') else (item.get('code') if item is mapping and item.get('code') else '—') %}
-                {% set p_type = item.get('type', '') if item is mapping else '' %}
-                {% set p_expired = item.get('expired', false) if item is mapping else false %}
-                {% set end_val = (item.get('end_date', '') if item is mapping else '') | string %}
+                {% for item in ns.passcodes %}
+                {% set p_name = item.get('name') if item.get('name') else 'Без имени' %}
+                {% set p_code = item.get('passcode') if item.get('passcode') else (item.get('code') if item.get('code') else '—') %}
+                {% set p_type = item.get('type', '') %}
+                {% set p_expired = item.get('expired', false) %}
+                {% set end_val = item.get('end_date', '') | string %}
                 {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val or end_val == 'None' %}
                   {% set end_str = 'Постоянный' %}
                 {% else %}
@@ -116,3 +121,8 @@ sequence:
             {% else %}
             <p>⚠️ <b>PIN-коды не найдены</b> или замок находится офлайн.</p>
             {% endif %}
+
+            <details style="margin-top: 15px; color: #888;">
+              <summary style="cursor: pointer; font-size: 0.85em;">🔍 Отладка ответа API (JSON)</summary>
+              <pre style="font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px;">{{ resp | to_json(pretty=True) }}</pre>
+            </details>
