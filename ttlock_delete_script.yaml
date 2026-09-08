@@ -131,8 +131,9 @@ sequence:
       - variables:
           expired_ids: >-
             {% set ns = namespace(ids=[]) %}
+            {% set items = raw_passcodes | from_json if raw_passcodes is string else raw_passcodes %}
             {% set now_ts = now().timestamp() %}
-            {% for item in raw_passcodes %}
+            {% for item in items %}
               {% if item is mapping %}
                 {% set p_type = item.get('type', '') %}
                 {% set p_expired = item.get('expired', false) %}
@@ -151,7 +152,7 @@ sequence:
 
       # Удаление найденных истёкших паролей по очереди
       - repeat:
-          for_each: "{{ expired_ids }}"
+          for_each: "{{ expired_ids | from_json if expired_ids is string else expired_ids }}"
           sequence:
             - action: ttlock.delete_passcode
               continue_on_error: true

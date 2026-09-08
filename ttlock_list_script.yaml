@@ -88,10 +88,67 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Генерация структуры данных с нативным словарем Python через JSON
+      # Подсчет количества истёкших кодов
       - variables:
-          passcodes_data: >-
-            {% set ns = namespace(passcodes=[], expired_count=0) %}
+          expired_count_raw: >-
+            {% set ns = namespace(count=0, items=[]) %}
+            {% if resp is defined and resp %}
+              {% if resp is mapping %}
+                {% if 'passcodes' in resp %}
+                  {% set raw = resp['passcodes'] %}
+                  {% if raw is mapping %}
+                    {% set target = raw.get(lock_entity) %}
+                    {% if target is iterable and not target is string %}
+                      {% set ns.items = target %}
+                    {% else %}
+                      {% for k, v in raw.items() %}
+                        {% if v is iterable and not v is string and ns.items | length == 0 %}
+                          {% set ns.items = v %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                  {% elif raw is iterable and not raw is string %}
+                    {% set ns.items = raw %}
+                  {% endif %}
+                {% elif lock_entity in resp %}
+                  {% set raw = resp[lock_entity] %}
+                  {% if raw is mapping and 'passcodes' in raw and raw['passcodes'] is iterable and not raw['passcodes'] is string %}
+                    {% set ns.items = raw['passcodes'] %}
+                  {% elif raw is iterable and not raw is string %}
+                    {% set ns.items = raw %}
+                  {% endif %}
+                {% else %}
+                  {% for k, v in resp.items() %}
+                    {% if v is mapping and 'passcodes' in v and v['passcodes'] is iterable and not v['passcodes'] is string %}
+                      {% set ns.items = v['passcodes'] %}
+                    {% elif v is iterable and not v is string and ns.items | length == 0 %}
+                      {% set ns.items = v %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+              {% elif resp is iterable and not resp is string %}
+                {% set ns.items = resp %}
+              {% endif %}
+            {% endif %}
+
+            {% set now_ts = now().timestamp() %}
+            {% for item in ns.items %}
+              {% if item is mapping %}
+                {% set p_type = item.get('type', '') %}
+                {% set p_expired = item.get('expired', false) %}
+                {% set end_val = item.get('end_date', '') | string %}
+                {% set is_perm = (p_type == 'permanent' or end_val.startswith('1970') or not end_val or end_val == 'None') %}
+                {% if not is_perm and (p_expired or (as_timestamp(end_val, 0) > 0 and as_timestamp(end_val, 0) < now_ts)) %}
+                  {% set ns.count = ns.count + 1 %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.count }}
+
+      - variables:
+          expired_count: "{{ expired_count_raw | int(0) }}"
+          table_html: |
+            {% set ns = namespace(passcodes=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
                 {# Ответ вида {"passcodes": {"lock.b14_116": [...]}} #}
@@ -134,25 +191,7 @@ sequence:
               {% endif %}
             {% endif %}
 
-            {% set now_ts = now().timestamp() %}
-            {% for item in ns.passcodes %}
-              {% if item is mapping %}
-                {% set p_type = item.get('type', '') %}
-                {% set p_expired = item.get('expired', false) %}
-                {% set end_val = item.get('end_date', '') | string %}
-                {% set is_perm = (p_type == 'permanent' or end_val.startswith('1970') or not end_val or end_val == 'None') %}
-                {% if not is_perm and (p_expired or (as_timestamp(end_val, 0) > 0 and as_timestamp(end_val, 0) < now_ts)) %}
-                  {% set ns.expired_count = ns.expired_count + 1 %}
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-            {{ {'passcodes': ns.passcodes, 'expired_count': ns.expired_count} | to_json }}
-
-      - variables:
-          expired_count: "{{ passcodes_data.expired_count | int(0) }}"
-          table_html: |
-            {% set items = passcodes_data.passcodes %}
-            {% if items | length > 0 %}
+            {% if ns.passcodes | length > 0 %}
             <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
               <thead>
                 <tr style="border-bottom: 2px solid #555; text-align: left;">
@@ -164,7 +203,7 @@ sequence:
               </thead>
               <tbody>
                 {% set now_ts = now().timestamp() %}
-                {% for item in items %}
+                {% for item in ns.passcodes %}
                 {% if item is mapping %}
                   {% set p_name = item.get('name') if item.get('name') else 'Без имени' %}
                   {% set p_code = item.get('passcode') if item.get('passcode') else (item.get('code') if item.get('code') else '—') %}
