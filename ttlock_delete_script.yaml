@@ -1,0 +1,184 @@
+alias: "TTLock — Удалить истёкшие PIN-коды"
+description: "Находит и удаляет все PIN-коды с истекшим сроком действия для выбранного замка TTLock"
+
+fields:
+  lock_entity:
+    name: "Замок"
+    required: true
+    selector:
+      entity:
+        filter:
+          - integration: ttlock
+            domain: lock
+
+  browser_id:
+    name: "Browser ID"
+    required: false
+    selector:
+      text:
+
+sequence:
+  # 1. Определение имени замка и его доступности (Online / Offline)
+  - variables:
+      selected_name: >-
+        {{ state_attr(lock_entity, 'friendly_name') | default(lock_entity) }}
+      lock_is_online: "{{ states(lock_entity) not in ['unavailable', 'unknown'] }}"
+
+  # 2. ВЕТКА 1: Замок недоступен (Офлайн)
+  - if:
+      - condition: template
+        value_template: "{{ not lock_is_online }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.close_popup
+            data:
+              browser_id: "{{ browser_id }}"
+            continue_on_error: true
+        else:
+          - action: browser_mod.close_popup
+            continue_on_error: true
+
+      - delay:
+          milliseconds: 300
+
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "⚠️ TTLock — замок недоступен"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⚠️ {{ selected_name }}
+
+                  Замок находится **офлайн**. Удаление истёкших PIN-кодов невозможно.
+        else:
+          - action: browser_mod.popup
+            data:
+              title: "⚠️ TTLock — замок недоступен"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⚠️ {{ selected_name }}
+
+                  Замок находится **офлайн**. Удаление истёкших PIN-кодов невозможно.
+
+  # 3. ВЕТКА 2: Замок доступен (Онлайн) -> запрашиваем список кодов и удаляем истёкшие
+  - if:
+      - condition: template
+        value_template: "{{ lock_is_online }}"
+    then:
+      # Запрос текущего списка PIN-кодов от интеграции TTLock
+      - action: ttlock.list_passcodes
+        continue_on_error: true
+        target:
+          entity_id: "{{ lock_entity }}"
+        response_variable: resp
+
+      # Извлечение исходного массива паролей
+      - variables:
+          raw_passcodes: >-
+            {% set ns = namespace(passcodes=[]) %}
+            {% if resp is defined and resp %}
+              {% if resp is mapping %}
+                {% if 'passcodes' in resp %}
+                  {% set raw = resp['passcodes'] %}
+                  {% if raw is mapping %}
+                    {% set target = raw.get(lock_entity) %}
+                    {% if target is iterable and not target is string %}
+                      {% set ns.passcodes = target %}
+                    {% else %}
+                      {% for k, v in raw.items() %}
+                        {% if v is iterable and not v is string and ns.passcodes | length == 0 %}
+                          {% set ns.passcodes = v %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                  {% elif raw is iterable and not raw is string %}
+                    {% set ns.passcodes = raw %}
+                  {% endif %}
+                {% elif lock_entity in resp %}
+                  {% set raw = resp[lock_entity] %}
+                  {% if raw is mapping and 'passcodes' in raw and raw['passcodes'] is iterable and not raw['passcodes'] is string %}
+                    {% set ns.passcodes = raw['passcodes'] %}
+                  {% elif raw is iterable and not raw is string %}
+                    {% set ns.passcodes = raw %}
+                  {% endif %}
+                {% else %}
+                  {% for k, v in resp.items() %}
+                    {% if v is mapping and 'passcodes' in v and v['passcodes'] is iterable and not v['passcodes'] is string %}
+                      {% set ns.passcodes = v['passcodes'] %}
+                    {% elif v is iterable and not v is string and ns.passcodes | length == 0 %}
+                      {% set ns.passcodes = v %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+              {% elif resp is iterable and not resp is string %}
+                {% set ns.passcodes = resp %}
+              {% endif %}
+            {% endif %}
+            {{ ns.passcodes }}
+
+      # Идентификация списков ID истёкших PIN-кодов
+      - variables:
+          expired_ids: >-
+            {% set ns = namespace(ids=[]) %}
+            {% set now_ts = now().timestamp() %}
+            {% for item in raw_passcodes %}
+              {% if item is mapping %}
+                {% set p_type = item.get('type', '') %}
+                {% set p_expired = item.get('expired', false) %}
+                {% set end_val = item.get('end_date', '') | string %}
+                {% set p_id = item.get('id') if item.get('id') else (item.get('passcode_id') if item.get('passcode_id') else item.get('keyboardPwdId')) %}
+                
+                {% set is_perm = (p_type == 'permanent' or end_val.startswith('1970') or not end_val or end_val == 'None') %}
+                {% if not is_perm and (p_expired or (as_timestamp(end_val, 0) > 0 and as_timestamp(end_val, 0) < now_ts)) %}
+                  {% if p_id %}
+                    {% set ns.ids = ns.ids + [p_id] %}
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.ids }}
+
+      # Удаление найденных истёкших паролей по очереди
+      - repeat:
+          for_each: "{{ expired_ids }}"
+          sequence:
+            - action: ttlock.delete_passcode
+              continue_on_error: true
+              target:
+                entity_id: "{{ lock_entity }}"
+              data:
+                passcode_id: "{{ repeat.item }}"
+                keyboard_pwd_id: "{{ repeat.item }}"
+
+      # Очистка модального контекста
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.close_popup
+            data:
+              browser_id: "{{ browser_id }}"
+            continue_on_error: true
+        else:
+          - action: browser_mod.close_popup
+            continue_on_error: true
+
+      - delay:
+          milliseconds: 500
+
+      # Перезапуск скрипта показа списка кодов для автоматического обновления таблицы
+      - action: script.ttlock_pokazat_spisok_pin_kodov
+        data:
+          lock_entity: "{{ lock_entity }}"
+          browser_id: "{{ browser_id if browser_id is defined and browser_id else 'THIS' }}"

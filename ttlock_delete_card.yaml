@@ -1,0 +1,31 @@
+type: button
+name: Очистка истёкших PIN-кодов TTLock
+icon: mdi:key-remove
+
+tap_action:
+  action: fire-dom-event
+  browser_mod:
+    service: browser_mod.popup
+    data:
+      title: "🗑️ Удаление истёкших PIN-кодов"
+      adaptive: true
+      content:
+        - name: lock_entity
+          label: "Замок"
+          selector:
+            entity:
+              filter:
+                - integration: ttlock
+                  domain: lock
+
+      left_button: "Отмена"
+      left_button_appearance: outlined
+
+      right_button: "Удалить истёкшие PIN"
+      right_button_variant: danger
+      right_button_appearance: filled
+
+      right_button_action:
+        action: script.ttlock_udalit_istekshie_pin_kody
+        data:
+          browser_id: THIS
