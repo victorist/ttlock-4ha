@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение списка кодов во всплывающем окне
+  # 4. Отображение красивой таблицы во всплывающем окне (обязательно с | для сохранения переносов строк \n)
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -54,32 +54,38 @@ sequence:
           browser_id: "{{ browser_id }}"
           title: "🔑 PIN-коды: {{ selected_name }}"
           adaptive: true
-          content:
-            type: markdown
-            content: >-
-              {% set ns = namespace(items=[]) %}
-              {% if resp is defined and resp %}
-                {% set data = resp.get(lock_entity, resp) if resp is mapping else resp %}
-                {% set raw = data.get('passcodes', data) if data is mapping else data %}
-                {% if raw is mapping %}
-                  {% set ns.items = raw.values() | list %}
-                {% elif raw is iterable and not raw is string %}
-                  {% set ns.items = raw %}
+          content: |
+            {% set items = [] %}
+            {% if resp is defined and resp %}
+              {% if resp is mapping %}
+                {% if 'passcodes' in resp %}
+                  {% set items = resp['passcodes'] %}
+                {% else %}
+                  {% set entity_data = resp.get(lock_entity, {}) %}
+                  {% set items = entity_data.get('passcodes', []) if entity_data is mapping else [] %}
                 {% endif %}
+              {% elif resp is iterable and not resp is string %}
+                {% set items = resp %}
               {% endif %}
+            {% endif %}
 
-              {% if ns.items | length > 0 %}
-              | Имя | PIN-код | Срок действия | Статус |
-              | :--- | :---: | :---: | :---: |
-              {% for item in ns.items %}
-              {% set p_name = item.get('name', 'Без имени') if item is mapping else 'PIN' %}
-              {% set p_code = item.get('passcode', item.get('code', '—')) if item is mapping else item %}
-              {% set p_expired = item.get('expired', false) if item is mapping else false %}
-              {% set end_raw = item.get('end_date', 0) if item is mapping else 0 %}
-              {% set end_str = (end_raw | int / 1000) | timestamp_custom('%d.%m.%Y %H:%M') if end_raw | int(0) > 100000000000 else (end_raw if end_raw else 'Постоянный') %}
-              {% set status = '🔴 Истёк' if p_expired else '🟢 Активен' %}
-              | **{{ p_name }}** | `{{ p_code }}` | {{ end_str }} | {{ status }} |
-              {% endfor %}
-              {% else %}
-              ⚠️ **PIN-коды не найдены** или замок офлайн.
-              {% endif %}
+            {% if items | length > 0 %}
+            | Имя | PIN-код | Срок действия | Статус |
+            | :--- | :---: | :---: | :---: |
+            {% for item in items %}
+            {% set p_name = item.name | default('Без имени') %}
+            {% set p_code = item.passcode | default(item.code | default('—')) %}
+            {% set p_type = item.type | default('') %}
+            {% set p_expired = item.expired | default(false) %}
+            {% set end_val = item.end_date | default('') | string %}
+            {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val %}
+              {% set end_str = 'Постоянный' %}
+            {% else %}
+              {% set end_str = as_timestamp(end_val) | timestamp_custom('%d.%m.%Y %H:%M', default=end_val) %}
+            {% endif %}
+            {% set status = '🔴 Истёк' if p_expired else '🟢 Активен' %}
+            | **{{ p_name }}** | `{{ p_code }}` | {{ end_str }} | {{ status }} |
+            {% endfor %}
+            {% else %}
+            ⚠️ **PIN-коды не найдены** или замок находится офлайн.
+            {% endif %}
