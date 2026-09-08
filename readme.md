@@ -1,6 +1,6 @@
 # TTLock Lock Management in Home Assistant
 
-[English Version](file:///Users/vistratov/dev_ha/ttlock/readme.md) | [Русская версия](file:///Users/vistratov/dev_ha/ttlock/readme_ru.md)
+[English Version](readme.md) | [Русская версия](readme_ru.md)
 
 This repository contains a solution for managing, creating, and viewing temporary and permanent PIN passcodes for TTLock smart locks in Home Assistant. It features automatic device availability verification and explicit passcode validation directly from the lock entries.
 
@@ -19,12 +19,12 @@ The system consists of three main modules:
 
 ## 📁 File Structure
 
-* [`ttlock_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_card.yaml) — PIN creation card configuration powered by `browser_mod.popup`.
-* [`ttlock_passcodes_card.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_passcodes_card.yaml) — Lock passcode list viewer card configuration powered by `browser_mod.popup`.
-* [`ttlock_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_script.yaml) — Core Home Assistant script for PIN passcode generation, multi-lock cascading, and verification.
-* [`ttlock_list_script.yaml`](file:///Users/vistratov/dev_ha/ttlock/ttlock_list_script.yaml) — Home Assistant script for querying and rendering the active passcodes HTML table for a selected lock.
-* [`readme.md`](file:///Users/vistratov/dev_ha/ttlock/readme.md) — Main English documentation and technical guide.
-* [`readme_ru.md`](file:///Users/vistratov/dev_ha/ttlock/readme_ru.md) — Russian documentation version.
+* [`ttlock_card.yaml`](ttlock_card.yaml) — PIN creation card configuration powered by `browser_mod.popup`.
+* [`ttlock_passcodes_card.yaml`](ttlock_passcodes_card.yaml) — Lock passcode list viewer card configuration powered by `browser_mod.popup`.
+* [`ttlock_script.yaml`](ttlock_script.yaml) — Core Home Assistant script for PIN passcode generation, multi-lock cascading, and verification.
+* [`ttlock_list_script.yaml`](ttlock_list_script.yaml) — Home Assistant script for querying and rendering the active passcodes HTML table for a selected lock.
+* [`readme.md`](readme.md) — Main English documentation and technical guide.
+* [`readme_ru.md`](readme_ru.md) — Russian documentation version.
 
 ---
 
