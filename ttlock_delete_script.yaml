@@ -155,7 +155,7 @@ sequence:
           ids_list: "{{ expired_ids | from_json if expired_ids is string else expired_ids }}"
           ids_count: "{{ ids_list | length }}"
 
-      # Отображение информационного окна о процессе очистки
+      # Отображение начального информационного окна о процессе очистки
       - if:
           - condition: template
             value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
@@ -170,10 +170,9 @@ sequence:
                 content: |
                   ### ⏳ {{ selected_name }}
 
-                  Идёт удаление истёкших PIN-кодов (**{{ ids_count }}** шт.)...
+                  Идёт подготовка к удалению истёкших PIN-кодов (**{{ ids_count }}** шт.)...
 
-                  ⏳ Отправка команд в замок и синхронизация с облаком TTLock...  
-                  Пожалуйста, подождите. Список автоматически обновится по завершении.
+                  ⏳ Начинаем отправку команд в замок...
         else:
           - action: browser_mod.popup
             data:
@@ -184,12 +183,11 @@ sequence:
                 content: |
                   ### ⏳ {{ selected_name }}
 
-                  Идёт удаление истёкших PIN-кодов (**{{ ids_count }}** шт.)...
+                  Идёт подготовка к удалению истёкших PIN-кодов (**{{ ids_count }}** шт.)...
 
-                  ⏳ Отправка команд в замок и синхронизация с облаком TTLock...  
-                  Пожалуйста, подождите. Список автоматически обновится по завершении.
+                  ⏳ Начинаем отправку команд в замок...
 
-      # Удаление найденных истёкших паролей по очереди
+      # Поочередное удаление с отображением живого счетчика прогресса и регулируемой паузой
       - repeat:
           for_each: "{{ ids_list }}"
           sequence:
@@ -200,7 +198,49 @@ sequence:
               data:
                 passcode_id: "{{ repeat.item }}"
 
-      # Пауза для гарантии завершения синхронизации облачного кэша TTLock
+            # Живой вывод оставшегося количества паролей
+            - if:
+                - condition: template
+                  value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+              then:
+                - action: browser_mod.popup
+                  data:
+                    browser_id: "{{ browser_id }}"
+                    title: "⏳ TTLock — очистка PIN-кодов"
+                    adaptive: true
+                    content:
+                      type: markdown
+                      content: |
+                        ### ⏳ {{ selected_name }}
+
+                        Очистка истёкших PIN-кодов в процессе...
+
+                        ✅ **Удалено:** {{ repeat.index }} из {{ ids_count }}  
+                        ⏳ **Осталось удалить:** {{ ids_count - repeat.index }}
+
+                        ⏳ Связь со шлюзом и облаком TTLock...
+              else:
+                - action: browser_mod.popup
+                  data:
+                    title: "⏳ TTLock — очистка PIN-кодов"
+                    adaptive: true
+                    content:
+                      type: markdown
+                      content: |
+                        ### ⏳ {{ selected_name }}
+
+                        Очистка истёкших PIN-кодов в процессе...
+
+                        ✅ **Удалено:** {{ repeat.index }} из {{ ids_count }}  
+                        ⏳ **Осталось удалить:** {{ ids_count - repeat.index }}
+
+                        ⏳ Связь со шлюзом и облаком TTLock...
+
+            # Небольшая задержка 350мс между вызовами для защиты от Rate Limit сервера TTLock и переполнения очереди шлюза
+            - delay:
+                milliseconds: 350
+
+      # Пауза 2 секунды для финальной синхронизации облачной базы данных TTLock
       - delay:
           seconds: 2
 
