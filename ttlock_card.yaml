@@ -1,0 +1,55 @@
+type: button
+name: Управление PIN-кодом TTLock
+icon: mdi:form-textbox-password
+
+tap_action:
+  action: fire-dom-event
+
+  browser_mod:
+    service: browser_mod.popup
+
+    data:
+      title: "🔐 Создание PIN-кода TTLock"
+      adaptive: true
+
+      content:
+
+        - name: lock_entity
+          label: "Замок"
+          selector:
+            entity:
+              filter:
+                - integration: ttlock
+                  domain: lock
+
+        - name: passcode_name
+          label: "Имя PIN-кода"
+          selector:
+            text:
+
+        - name: passcode
+          label: "PIN-код"
+          selector:
+            text:
+
+        - name: start_time
+          label: "Начало действия"
+          selector:
+            datetime:
+
+        - name: end_time
+          label: "Окончание действия"
+          selector:
+            datetime:
+
+      left_button: "Отмена"
+      left_button_appearance: outlined
+
+      right_button: "Создать PIN-код"
+      right_button_variant: success
+      right_button_appearance: filled
+
+      right_button_action:
+        action: script.sozdat_pin_kod_ttlock
+        data:
+          browser_id: THIS

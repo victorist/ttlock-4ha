@@ -1,0 +1,590 @@
+alias: "Создать PIN-код TTLock"
+description: "Создание PIN-кода с проверкой доступности замков и верификацией через list_passcodes"
+
+fields:
+  lock_entity:
+    name: "Замок"
+    required: true
+    selector:
+      entity:
+        filter:
+          - integration: ttlock
+            domain: lock
+
+  passcode_name:
+    name: "Имя PIN-кода"
+    required: true
+    selector:
+      text:
+
+  passcode:
+    name: "PIN-код"
+    required: true
+    selector:
+      text:
+
+  start_time:
+    name: "Начало действия"
+    required: true
+    selector:
+      datetime:
+
+  end_time:
+    name: "Окончание действия"
+    required: true
+    selector:
+      datetime:
+
+  browser_id:
+    name: "Browser ID"
+    required: false
+    selector:
+      text:
+
+sequence:
+  # ==========================================================
+  # 1. ИНИЦИАЛИЗАЦИЯ, ПРИВЕДЕНИЕ ДАТ И ОПРЕДЕЛЕНИЕ ENTITY_ID
+  # ==========================================================
+  - variables:
+      selected_name: >-
+        {{ state_attr(lock_entity, 'friendly_name') | default(lock_entity) }}
+      target_pin: "{{ passcode | string }}"
+
+      # Коррекция дат: миллисекунды из Browser Mod -> строка YYYY-MM-DD HH:MM:SS
+      formatted_start_time: >-
+        {% set s = start_time | default('') | string | trim %}
+        {% if '-' in s %}
+          {{ as_timestamp(s) | timestamp_custom('%Y-%m-%d %H:%M:%S', default=s) }}
+        {% elif s | int(0) > 100000000000 %}
+          {{ (s | int / 1000) | timestamp_custom('%Y-%m-%d %H:%M:%S') }}
+        {% elif s | int(0) > 0 %}
+          {{ (s | int) | timestamp_custom('%Y-%m-%d %H:%M:%S') }}
+        {% else %}
+          {{ s }}
+        {% endif %}
+
+      formatted_end_time: >-
+        {% set s = end_time | default('') | string | trim %}
+        {% if '-' in s %}
+          {{ as_timestamp(s) | timestamp_custom('%Y-%m-%d %H:%M:%S', default=s) }}
+        {% elif s | int(0) > 100000000000 %}
+          {{ (s | int / 1000) | timestamp_custom('%Y-%m-%d %H:%M:%S') }}
+        {% elif s | int(0) > 0 %}
+          {{ (s | int) | timestamp_custom('%Y-%m-%d %H:%M:%S') }}
+        {% else %}
+          {{ s }}
+        {% endif %}
+
+      # Автоопределение сущностей подъездов и калитки
+      entity_p1: >-
+        {% if states('lock.b14_podezd_1') not in ['unknown'] %}
+          lock.b14_podezd_1
+        {% elif states('lock.borisenko_14_podezd_1') not in ['unknown'] %}
+          lock.borisenko_14_podezd_1
+        {% else %}
+          lock.b14_podezd_1
+        {% endif %}
+
+      entity_p2: >-
+        {% if states('lock.b14_podezd_2') not in ['unknown'] %}
+          lock.b14_podezd_2
+        {% elif states('lock.borisenko_14_podezd_2') not in ['unknown'] %}
+          lock.borisenko_14_podezd_2
+        {% else %}
+          lock.b14_podezd_2
+        {% endif %}
+
+      entity_kalitka: >-
+        {% if states('lock.borisenko_14_kalitka') not in ['unknown'] %}
+          lock.borisenko_14_kalitka
+        {% elif states('lock.b14_kalitka') not in ['unknown'] %}
+          lock.b14_kalitka
+        {% else %}
+          lock.borisenko_14_kalitka
+        {% endif %}
+
+      # Предварительная проверка доступности основного замка
+      main_is_online: "{{ states(lock_entity) not in ['unavailable', 'unknown'] }}"
+
+  # ==========================================================
+  # 2. СТАРТОВОЕ СООБЩЕНИЕ
+  # ==========================================================
+  - if:
+      - condition: template
+        value_template: "{{ browser_id | default('') | length > 0 }}"
+    then:
+      - action: browser_mod.popup
+        data:
+          browser_id: "{{ browser_id }}"
+          title: "🔐 TTLock — создание PIN"
+          adaptive: true
+          content:
+            type: markdown
+            content: |
+              ### 🔐 Создание PIN-кода
+
+              **Основной замок:** {{ selected_name }}  
+              **PIN:** `{{ target_pin }}`  
+              **Имя:** {{ passcode_name }}  
+
+              ⏳ Обработка основного замка...
+
+  # ==========================================================
+  # 3. ОСНОВНОЙ ЗАМОК: ПРОВЕРКА, СОЗДАНИЕ И ВЕРИФИКАЦИЯ
+  # ==========================================================
+  - if:
+      - condition: template
+        value_template: "{{ main_is_online }}"
+    then:
+      - action: ttlock.create_passcode
+        continue_on_error: true
+        target:
+          entity_id: "{{ lock_entity }}"
+        data:
+          passcode: "{{ target_pin }}"
+          passcode_name: "{{ passcode_name }}"
+          start_time: "{{ formatted_start_time }}"
+          end_time: "{{ formatted_end_time }}"
+
+      - delay:
+          seconds: 5
+
+      - action: ttlock.list_passcodes
+        continue_on_error: true
+        target:
+          entity_id: "{{ lock_entity }}"
+        response_variable: resp_main
+    else:
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "⚠️ TTLock — замок недоступен"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⚠️ {{ selected_name }}
+
+                  Основной замок находится **офлайн** (нет связи со шлюзом).
+                  PIN-код в нём создать невозможно.
+
+                  ⏳ Переходим к связанным замкам...
+
+  # Расчёт статуса основного замка на корневом уровне скрипта
+  - variables:
+      main_status: >-
+        {% if not main_is_online %}
+          ⚠️ Замок недоступен
+        {% else %}
+          {% set ns = namespace(ok=false) %}
+          {% if resp_main is defined and resp_main %}
+            {% set data = resp_main.get(lock_entity, resp_main) if resp_main is mapping else resp_main %}
+            {% set codes = data.get('passcodes', data) if data is mapping else data %}
+            {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
+            {% for item in items %}
+              {% if item is mapping %}
+                {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                  {% set ns.ok = true %}
+                {% endif %}
+              {% elif item | string == target_pin %}
+                {% set ns.ok = true %}
+              {% endif %}
+            {% endfor %}
+            {% if not ns.ok and target_pin in (resp_main | string) %}
+              {% set ns.ok = true %}
+            {% endif %}
+          {% endif %}
+          {{ '✅ Подтверждён' if ns.ok else '❌ Не создан' }}
+        {% endif %}
+
+  # ==========================================================
+  # 4. ВЕТКА 1: ДЛЯ Б14 1xx (ПОДЪЕЗД 1)
+  # ==========================================================
+  - if:
+      - condition: template
+        value_template: "{{ selected_name.startswith('Б14 1') }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🔐 TTLock — статус"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### {{ selected_name }}
+                  Статус основного замка: **{{ main_status }}**
+
+                  ---
+                  ⏳ Следующий замок: **Подъезд 1**  
+                  Ожидание **20 секунд**...
+
+      - delay:
+          seconds: 20
+
+      - variables:
+          p1_is_online: "{{ states(entity_p1) not in ['unavailable', 'unknown'] }}"
+
+      - if:
+          - condition: template
+            value_template: "{{ p1_is_online }}"
+        then:
+          - if:
+              - condition: template
+                value_template: "{{ browser_id | default('') | length > 0 }}"
+            then:
+              - action: browser_mod.popup
+                data:
+                  browser_id: "{{ browser_id }}"
+                  title: "🚪 Подъезд 1"
+                  adaptive: true
+                  content:
+                    type: markdown
+                    content: |
+                      ### 🚪 Подъезд 1
+                      **PIN:** `{{ target_pin }}`  
+                      ⏳ Создаём и проверяем PIN-код...
+
+          - action: ttlock.create_passcode
+            continue_on_error: true
+            target:
+              entity_id: "{{ entity_p1 }}"
+            data:
+              passcode: "{{ target_pin }}"
+              passcode_name: "{{ passcode_name }}"
+              start_time: "{{ formatted_start_time }}"
+              end_time: "{{ formatted_end_time }}"
+
+          - delay:
+              seconds: 5
+
+          - action: ttlock.list_passcodes
+            continue_on_error: true
+            target:
+              entity_id: "{{ entity_p1 }}"
+            response_variable: resp_p1
+
+      - variables:
+          p1_status: >-
+            {% if not p1_is_online %}
+              ⚠️ Замок недоступен
+            {% else %}
+              {% set ns = namespace(ok=false) %}
+              {% if resp_p1 is defined and resp_p1 %}
+                {% set data = resp_p1.get(entity_p1, resp_p1) if resp_p1 is mapping else resp_p1 %}
+                {% set codes = data.get('passcodes', data) if data is mapping else data %}
+                {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
+                {% for item in items %}
+                  {% if item is mapping %}
+                    {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                      {% set ns.ok = true %}
+                    {% endif %}
+                  {% elif item | string == target_pin %}
+                    {% set ns.ok = true %}
+                  {% endif %}
+                {% endfor %}
+                {% if not ns.ok and target_pin in (resp_p1 | string) %}
+                  {% set ns.ok = true %}
+                {% endif %}
+              {% endif %}
+              {{ '✅ Подтверждён' if ns.ok else '❌ Не создан' }}
+            {% endif %}
+
+      - action: persistent_notification.create
+        data:
+          notification_id: "ttlock_pin_result"
+          title: "TTLock — результат создания PIN"
+          message: |
+            PIN: {{ target_pin }}
+            Имя: {{ passcode_name }}
+
+            • {{ selected_name }}: {{ main_status }}
+            • Подъезд 1: {{ p1_status }}
+
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🎉 Результат операции"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### 🔐 Итог создания PIN-кода
+
+                  **PIN:** `{{ target_pin }}` | **Имя:** {{ passcode_name }}
+
+                  * **{{ selected_name }}:** {{ main_status }}
+                  * **Подъезд 1:** {{ p1_status }}
+
+  # ==========================================================
+  # 5. ВЕТКА 2: ДЛЯ Б14 2xx (ПОДЪЕЗД 2 И КАЛИТКА)
+  # ==========================================================
+  - if:
+      - condition: template
+        value_template: "{{ selected_name.startswith('Б14 2') }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🔐 TTLock — статус"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### {{ selected_name }}
+                  Статус основного замка: **{{ main_status }}**
+
+                  ---
+                  ⏳ Следующий замок: **Подъезд 2**  
+                  Ожидание **20 секунд**...
+
+      - delay:
+          seconds: 20
+
+      # --- ПОДЪЕЗД 2 ---
+      - variables:
+          p2_is_online: "{{ states(entity_p2) not in ['unavailable', 'unknown'] }}"
+
+      - if:
+          - condition: template
+            value_template: "{{ p2_is_online }}"
+        then:
+          - if:
+              - condition: template
+                value_template: "{{ browser_id | default('') | length > 0 }}"
+            then:
+              - action: browser_mod.popup
+                data:
+                  browser_id: "{{ browser_id }}"
+                  title: "🚪 Подъезд 2"
+                  adaptive: true
+                  content:
+                    type: markdown
+                    content: |
+                      ### 🚪 Подъезд 2
+                      **PIN:** `{{ target_pin }}`  
+                      ⏳ Создаём и проверяем PIN-код...
+
+          - action: ttlock.create_passcode
+            continue_on_error: true
+            target:
+              entity_id: "{{ entity_p2 }}"
+            data:
+              passcode: "{{ target_pin }}"
+              passcode_name: "{{ passcode_name }}"
+              start_time: "{{ formatted_start_time }}"
+              end_time: "{{ formatted_end_time }}"
+
+          - delay:
+              seconds: 5
+
+          - action: ttlock.list_passcodes
+            continue_on_error: true
+            target:
+              entity_id: "{{ entity_p2 }}"
+            response_variable: resp_p2
+
+      - variables:
+          p2_status: >-
+            {% if not p2_is_online %}
+              ⚠️ Замок недоступен
+            {% else %}
+              {% set ns = namespace(ok=false) %}
+              {% if resp_p2 is defined and resp_p2 %}
+                {% set data = resp_p2.get(entity_p2, resp_p2) if resp_p2 is mapping else resp_p2 %}
+                {% set codes = data.get('passcodes', data) if data is mapping else data %}
+                {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
+                {% for item in items %}
+                  {% if item is mapping %}
+                    {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                      {% set ns.ok = true %}
+                    {% endif %}
+                  {% elif item | string == target_pin %}
+                    {% set ns.ok = true %}
+                  {% endif %}
+                {% endfor %}
+                {% if not ns.ok and target_pin in (resp_p2 | string) %}
+                  {% set ns.ok = true %}
+                {% endif %}
+              {% endif %}
+              {{ '✅ Подтверждён' if ns.ok else '❌ Не создан' }}
+            {% endif %}
+
+      # Сообщение перед переходом к калитке
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🔐 TTLock — статус"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  * **{{ selected_name }}:** {{ main_status }}
+                  * **Подъезд 2:** {{ p2_status }}
+
+                  ---
+                  ⏳ Следующий замок: **Калитка**  
+                  Ожидание **20 секунд**...
+
+      - delay:
+          seconds: 20
+
+      # --- КАЛИТКА ---
+      - variables:
+          kalitka_is_online: "{{ states(entity_kalitka) not in ['unavailable', 'unknown'] }}"
+
+      - if:
+          - condition: template
+            value_template: "{{ kalitka_is_online }}"
+        then:
+          - if:
+              - condition: template
+                value_template: "{{ browser_id | default('') | length > 0 }}"
+            then:
+              - action: browser_mod.popup
+                data:
+                  browser_id: "{{ browser_id }}"
+                  title: "🚧 Калитка"
+                  adaptive: true
+                  content:
+                    type: markdown
+                    content: |
+                      ### 🚧 Калитка
+                      **PIN:** `{{ target_pin }}`  
+                      ⏳ Создаём и проверяем PIN-код...
+
+          - action: ttlock.create_passcode
+            continue_on_error: true
+            target:
+              entity_id: "{{ entity_kalitka }}"
+            data:
+              passcode: "{{ target_pin }}"
+              passcode_name: "{{ passcode_name }}"
+              start_time: "{{ formatted_start_time }}"
+              end_time: "{{ formatted_end_time }}"
+
+          - delay:
+              seconds: 5
+
+          - action: ttlock.list_passcodes
+            continue_on_error: true
+            target:
+              entity_id: "{{ entity_kalitka }}"
+            response_variable: resp_kalitka
+
+      - variables:
+          kalitka_status: >-
+            {% if not kalitka_is_online %}
+              ⚠️ Замок недоступен
+            {% else %}
+              {% set ns = namespace(ok=false) %}
+              {% if resp_kalitka is defined and resp_kalitka %}
+                {% set data = resp_kalitka.get(entity_kalitka, resp_kalitka) if resp_kalitka is mapping else resp_kalitka %}
+                {% set codes = data.get('passcodes', data) if data is mapping else data %}
+                {% set items = codes.values() if codes is mapping else (codes if codes is iterable and not codes is string else []) %}
+                {% for item in items %}
+                  {% if item is mapping %}
+                    {% if item.get('passcode') | string == target_pin or item.get('name') | string == passcode_name %}
+                      {% set ns.ok = true %}
+                    {% endif %}
+                  {% elif item | string == target_pin %}
+                    {% set ns.ok = true %}
+                  {% endif %}
+                {% endfor %}
+                {% if not ns.ok and target_pin in (resp_kalitka | string) %}
+                  {% set ns.ok = true %}
+                {% endif %}
+              {% endif %}
+              {{ '✅ Подтверждён' if ns.ok else '❌ Не создан' }}
+            {% endif %}
+
+      # Финальный отчет для 2xx
+      - action: persistent_notification.create
+        data:
+          notification_id: "ttlock_pin_result"
+          title: "TTLock — результат создания PIN"
+          message: |
+            PIN: {{ target_pin }}
+            Имя: {{ passcode_name }}
+
+            • {{ selected_name }}: {{ main_status }}
+            • Подъезд 2: {{ p2_status }}
+            • Калитка: {{ kalitka_status }}
+
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🎉 Результат операции"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### 🔐 Итог создания PIN-кода
+
+                  **PIN:** `{{ target_pin }}` | **Имя:** {{ passcode_name }}
+
+                  * **{{ selected_name }}:** {{ main_status }}
+                  * **Подъезд 2:** {{ p2_status }}
+                  * **Калитка:** {{ kalitka_status }}
+
+  # ==========================================================
+  # 6. ВЕТКА 3: ДЛЯ ВСЕХ ОСТАЛЬНЫХ ЗАМКОВ
+  # ==========================================================
+  - if:
+      - condition: template
+        value_template: >-
+          {{ not selected_name.startswith('Б14 1')
+             and not selected_name.startswith('Б14 2') }}
+    then:
+      - action: persistent_notification.create
+        data:
+          notification_id: "ttlock_pin_result"
+          title: "TTLock — результат создания PIN"
+          message: |
+            PIN: {{ target_pin }}
+            Имя: {{ passcode_name }}
+
+            • {{ selected_name }}: {{ main_status }}
+
+      - if:
+          - condition: template
+            value_template: "{{ browser_id | default('') | length > 0 }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🎉 Результат операции"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### 🔐 Итог создания PIN-кода
+
+                  **Замок:** {{ selected_name }}  
+                  **PIN:** `{{ target_pin }}`  
+
+                  Статус: **{{ main_status }}**
