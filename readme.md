@@ -55,10 +55,18 @@ The system consists of four main modules:
 
 ## 🛠️ Installation & Setup
 
-1. Copy the scripts into your Home Assistant configuration (e.g. `scripts.yaml` or separate script files):
-   - [`ttlock_script.yaml`](ttlock_script.yaml)
-   - [`ttlock_list_script.yaml`](ttlock_list_script.yaml)
-   - [`ttlock_delete_script.yaml`](ttlock_delete_script.yaml)
+1. Copy the scripts into your Home Assistant configuration (e.g. `scripts.yaml` or UI script editor):
+   - [`ttlock_script.yaml`](ttlock_script.yaml) — under key `sozdat_pin_kod_ttlock`
+   - [`ttlock_list_script.yaml`](ttlock_list_script.yaml) — under key `ttlock_pokazat_spisok_pin_kodov`
+   - [`ttlock_delete_script.yaml`](ttlock_delete_script.yaml) — under key `ttlock_udalit_istekshie_pin_kody`
+
+   *When inserting into `scripts.yaml`, specify the script entity ID key:*
+   ```yaml
+   ttlock_udalit_istekshie_pin_kody:
+     alias: "TTLock — Delete Expired Passcodes"
+     ...
+   ```
+   *When pasting into Home Assistant UI Script Editor (Edit in YAML), **completely clear** the pre-filled template text before pasting.*
 
 2. Add the dashboard card configurations to your Lovelace dashboard:
    - [`ttlock_card.yaml`](ttlock_card.yaml)

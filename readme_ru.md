@@ -55,10 +55,18 @@
 
 ## 🛠️ Установка и настройка
 
-1. Скопируйте содержимое скриптов в вашу конфигурацию Home Assistant (например, в `scripts.yaml` или отдельные файлы скриптов):
-   - [`ttlock_script.yaml`](ttlock_script.yaml)
-   - [`ttlock_list_script.yaml`](ttlock_list_script.yaml)
-   - [`ttlock_delete_script.yaml`](ttlock_delete_script.yaml)
+1. Скопируйте содержимое скриптов в вашу конфигурацию Home Assistant (например, в `scripts.yaml` или через веб-редактор):
+   - [`ttlock_script.yaml`](ttlock_script.yaml) — под ключом `sozdat_pin_kod_ttlock`
+   - [`ttlock_list_script.yaml`](ttlock_list_script.yaml) — под ключом `ttlock_pokazat_spisok_pin_kodov`
+   - [`ttlock_delete_script.yaml`](ttlock_delete_script.yaml) — под ключом `ttlock_udalit_istekshie_pin_kody`
+
+   *При вставке в `scripts.yaml` укажите имя ключа скрипта:*
+   ```yaml
+   ttlock_udalit_istekshie_pin_kody:
+     alias: "TTLock — Удалить истёкшие PIN-коды"
+     ...
+   ```
+   *При вставке через UI-редактор Home Assistant (Редактировать в YAML) **полностью очистите** предзаполненный шаблон перед вставкой.*
 
 2. Добавьте конфигурации карточек на ваш дашборд Lovelace:
    - [`ttlock_card.yaml`](ttlock_card.yaml)
