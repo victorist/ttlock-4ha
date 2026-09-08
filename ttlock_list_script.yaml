@@ -62,8 +62,12 @@ sequence:
                   {% set ns.passcodes = resp['passcodes'] %}
                 {% else %}
                   {% for k1, v1 in resp.items() %}
-                    {% if v1 is mapping and 'passcodes' in v1 and v1['passcodes'] is iterable and not v1['passcodes'] is string %}
-                      {% set ns.passcodes = v1['passcodes'] %}
+                    {% if v1 is mapping %}
+                      {% if 'passcodes' in v1 and v1['passcodes'] is iterable and not v1['passcodes'] is string %}
+                        {% set ns.passcodes = v1['passcodes'] %}
+                      {% elif 'passcode' in v1 or 'id' in v1 or 'name' in v1 %}
+                        {% set ns.passcodes = ns.passcodes + [v1] %}
+                      {% endif %}
                     {% elif v1 is iterable and not v1 is string %}
                       {% for sub in v1 %}
                         {% if sub is mapping %}
@@ -129,5 +133,5 @@ sequence:
 
             <details style="margin-top: 15px; color: #888;">
               <summary style="cursor: pointer; font-size: 0.85em;">🔍 Отладка ответа API (JSON)</summary>
-              <pre style="font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px;">{{ resp | to_json(pretty=True) if resp is defined else 'Ответ не получен' }}</pre>
+              <pre style="font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px;">{{ resp | to_json if resp is defined else 'Ответ не получен' }}</pre>
             </details>
