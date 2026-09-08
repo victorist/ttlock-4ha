@@ -1,0 +1,31 @@
+type: button
+name: Список PIN-кодов TTLock
+icon: mdi:key-chain
+
+tap_action:
+  action: fire-dom-event
+  browser_mod:
+    service: browser_mod.popup
+    data:
+      title: "🔑 Запрос списка PIN-кодов"
+      adaptive: true
+      content:
+        - name: lock_entity
+          label: "Замок"
+          selector:
+            entity:
+              filter:
+                - integration: ttlock
+                  domain: lock
+
+      left_button: "Отмена"
+      left_button_appearance: outlined
+
+      right_button: "Показать PIN-коды"
+      right_button_variant: primary
+      right_button_appearance: filled
+
+      right_button_action:
+        action: script.ttlock_pokazat_spisok_pin_kodov
+        data:
+          browser_id: THIS
