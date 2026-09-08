@@ -29,25 +29,54 @@ sequence:
       - condition: template
         value_template: "{{ not lock_is_online }}"
     then:
-      # Небольшая пауза 800мс для очистки DOM-контекста первого диалога в Chromium / Yandex Browser
+      # Очистка предыдущего диалогового окна для сброса очереди в Chromium / Yandex Browser
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.close_popup
+            data:
+              browser_id: "{{ browser_id }}"
+            continue_on_error: true
+        else:
+          - action: browser_mod.close_popup
+            continue_on_error: true
+
       - delay:
-          milliseconds: 800
+          milliseconds: 300
 
-      - action: browser_mod.popup
-        data:
-          browser_id: "{{ browser_id if browser_id is defined and browser_id else 'THIS' }}"
-          title: "⚠️ TTLock — замок недоступен"
-          adaptive: true
-          content:
-            type: markdown
-            content: |
-              ### ⚠️ {{ selected_name }}
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "⚠️ TTLock — замок недоступен"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⚠️ {{ selected_name }}
 
-              Замок находится **офлайн** (нет связи со шлюзом или устройство недоступно в Home Assistant).
+                  Замок находится **офлайн** (нет связи со шлюзом или устройство недоступно в Home Assistant).
 
-              Запрос списка PIN-кодов невозможен. Проверьте подключение шлюза TTLock к сети.
+                  Запрос списка PIN-кодов невозможен. Проверьте подключение шлюза TTLock к сети.
+        else:
+          - action: browser_mod.popup
+            data:
+              title: "⚠️ TTLock — замок недоступен"
+              adaptive: true
+              content:
+                type: markdown
+                content: |
+                  ### ⚠️ {{ selected_name }}
 
-  # 3. ВЕТКА 2: Замок доступен (Онлайн) -> запрашиваем список кодов и выводим popup на активном экране
+                  Замок находится **офлайн** (нет связи со шлюзом или устройство недоступно в Home Assistant).
+
+                  Запрос списка PIN-кодов невозможен. Проверьте подключение шлюза TTLock к сети.
+
+  # 3. ВЕТКА 2: Замок доступен (Онлайн) -> запрашиваем список кодов и выводим popup
   - if:
       - condition: template
         value_template: "{{ lock_is_online }}"
@@ -59,17 +88,9 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Небольшая пауза 800мс для гарантированного завершения закрытия первого диалога в Yandex Browser / Chromium
-      - delay:
-          milliseconds: 800
-
-      # Вывод итоговой HTML-таблицы с паролями
-      - action: browser_mod.popup
-        data:
-          browser_id: "{{ browser_id if browser_id is defined and browser_id else 'THIS' }}"
-          title: "🔑 PIN-коды: {{ selected_name }}"
-          adaptive: true
-          content: |
+      # Генерация HTML-структуры таблицы с паролями
+      - variables:
+          table_html: |
             {% set ns = namespace(passcodes=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
@@ -162,3 +183,37 @@ sequence:
               <summary style="cursor: pointer; font-size: 0.85em;">🔍 Отладка ответа API (JSON)</summary>
               <pre style="font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px;">{{ resp | to_json if resp is defined else 'Ответ не получен' }}</pre>
             </details>
+
+      # Предварительное закрытие старого окна для полной разблокировки очереди диалогов в Yandex Browser / Chromium
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.close_popup
+            data:
+              browser_id: "{{ browser_id }}"
+            continue_on_error: true
+        else:
+          - action: browser_mod.close_popup
+            continue_on_error: true
+
+      - delay:
+          milliseconds: 300
+
+      # Отображение таблицы со списком паролей
+      - if:
+          - condition: template
+            value_template: "{{ browser_id is defined and browser_id and browser_id != 'THIS' }}"
+        then:
+          - action: browser_mod.popup
+            data:
+              browser_id: "{{ browser_id }}"
+              title: "🔑 PIN-коды: {{ selected_name }}"
+              adaptive: true
+              content: "{{ table_html }}"
+        else:
+          - action: browser_mod.popup
+            data:
+              title: "🔑 PIN-коды: {{ selected_name }}"
+              adaptive: true
+              content: "{{ table_html }}"
