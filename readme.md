@@ -184,8 +184,10 @@ For easy inspection of all active and expired PIN passcodes:
    - Triggers `ttlock_list_script.yaml` upon lock selection.
 
 2. **Data Processing & Formatting (`ttlock_list_script.yaml`)**:
-   - Requests data via `ttlock.list_passcodes`.
+   - Performs a pre-execution lock availability check (`states(lock_entity) not in ['unavailable', 'unknown']`).
+   - If the lock is offline, immediately displays a `⚠️ TTLock — Lock Unavailable` warning popup without sending unnecessary API calls.
+   - If the lock is online, queries passcodes via `ttlock.list_passcodes`.
    - Unpacks the nested 2-level API response structure (`resp["passcodes"][lock_entity]`).
-   - Uses an **explicit HTML table** (`<table>`, `<tr>`, `<td>`) instead of Markdown tables to prevent line-wrapping/folding issues in `browser_mod.popup`.
+   - Uses an **explicit HTML table** (`<table>`, `<tr>`, `<td>`) instead of Markdown tables to prevent line-wrapping issues in `browser_mod.popup`.
    - Identifies permanent passcodes (`type: permanent` or 1970 timestamp year) and formats periodic expiration dates into readable `DD.MM.YYYY HH:MM`.
    - Includes a collapsible **"🔍 API Response Debug (JSON)"** section for troubleshooting API payload structures.
