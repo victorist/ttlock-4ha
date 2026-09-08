@@ -44,7 +44,7 @@ sequence:
       entity_id: "{{ lock_entity }}"
     response_variable: resp
 
-  # 4. Отображение чистой HTML-таблицы во всплывающем окне (100% совместимо с Browser Mod)
+  # 4. Отображение чистой HTML-таблицы со всеми паролями замка
   - if:
       - condition: template
         value_template: "{{ browser_id | default('') | length > 0 }}"
@@ -55,21 +55,33 @@ sequence:
           title: "🔑 PIN-коды: {{ selected_name }}"
           adaptive: true
           content: |
-            {% set items = [] %}
+            {% set ns = namespace(items=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
-                {% if 'passcodes' in resp %}
-                  {% set items = resp['passcodes'] %}
+                {% set target_data = resp.get(lock_entity) %}
+                {% if target_data is defined and target_data %}
+                  {% if target_data is mapping and 'passcodes' in target_data %}
+                    {% set raw = target_data['passcodes'] %}
+                  {% else %}
+                    {% set raw = target_data %}
+                  {% endif %}
+                {% elif 'passcodes' in resp %}
+                  {% set raw = resp['passcodes'] %}
                 {% else %}
-                  {% set entity_data = resp.get(lock_entity, {}) %}
-                  {% set items = entity_data.get('passcodes', []) if entity_data is mapping else [] %}
+                  {% set raw = resp %}
+                {% endif %}
+
+                {% if raw is mapping %}
+                  {% set ns.items = raw.values() | list %}
+                {% elif raw is iterable and not raw is string %}
+                  {% set ns.items = raw | list %}
                 {% endif %}
               {% elif resp is iterable and not resp is string %}
-                {% set items = resp %}
+                {% set ns.items = resp | list %}
               {% endif %}
             {% endif %}
 
-            {% if items | length > 0 %}
+            {% if ns.items | length > 0 %}
             <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
               <thead>
                 <tr style="border-bottom: 2px solid #555; text-align: left;">
@@ -80,13 +92,13 @@ sequence:
                 </tr>
               </thead>
               <tbody>
-                {% for item in items %}
-                {% set p_name = item.name if item.name is defined and item.name else (item.get('name') if item is mapping else 'Без имени') %}
-                {% set p_code = item.passcode if item.passcode is defined and item.passcode else (item.get('passcode') if item is mapping else '—') %}
-                {% set p_type = item.type if item.type is defined else (item.get('type') if item is mapping else '') %}
-                {% set p_expired = item.expired if item.expired is defined else (item.get('expired', false) if item is mapping else false) %}
-                {% set end_val = (item.end_date if item.end_date is defined else (item.get('end_date', '') if item is mapping else '')) | string %}
-                {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val %}
+                {% for item in ns.items %}
+                {% set p_name = item.get('name') if item is mapping and item.get('name') else (item.name if item.name is defined and item.name else 'Без имени') %}
+                {% set p_code = item.get('passcode') if item is mapping and item.get('passcode') else (item.get('code') if item is mapping and item.get('code') else '—') %}
+                {% set p_type = item.get('type', '') if item is mapping else '' %}
+                {% set p_expired = item.get('expired', false) if item is mapping else false %}
+                {% set end_val = (item.get('end_date', '') if item is mapping else '') | string %}
+                {% if p_type == 'permanent' or end_val.startswith('1970') or not end_val or end_val == 'None' %}
                   {% set end_str = 'Постоянный' %}
                 {% else %}
                   {% set end_str = as_timestamp(end_val) | timestamp_custom('%d.%m.%Y %H:%M', default=end_val) %}
