@@ -88,9 +88,9 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Генерация структуры данных с нативным словарем Python
+      # Генерация структуры данных с нативным словарем Python через JSON
       - variables:
-          passcodes_data:
+          passcodes_data: >-
             {% set ns = namespace(passcodes=[], expired_count=0) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
@@ -146,7 +146,7 @@ sequence:
                 {% endif %}
               {% endif %}
             {% endfor %}
-            {{ {'passcodes': ns.passcodes, 'expired_count': ns.expired_count} }}
+            {{ {'passcodes': ns.passcodes, 'expired_count': ns.expired_count} | to_json }}
 
       - variables:
           expired_count: "{{ passcodes_data.expired_count | int(0) }}"

@@ -83,9 +83,9 @@ sequence:
           entity_id: "{{ lock_entity }}"
         response_variable: resp
 
-      # Извлечение исходного массива паролей как нативного списка
+      # Извлечение исходного массива паролей как нативного списка через JSON
       - variables:
-          raw_passcodes:
+          raw_passcodes: >-
             {% set ns = namespace(passcodes=[]) %}
             {% if resp is defined and resp %}
               {% if resp is mapping %}
@@ -125,11 +125,11 @@ sequence:
                 {% set ns.passcodes = resp %}
               {% endif %}
             {% endif %}
-            {{ ns.passcodes }}
+            {{ ns.passcodes | to_json }}
 
-      # Идентификация списков ID истёкших PIN-кодов как нативного списка
+      # Идентификация списков ID истёкших PIN-кодов как нативного списка через JSON
       - variables:
-          expired_ids:
+          expired_ids: >-
             {% set ns = namespace(ids=[]) %}
             {% set now_ts = now().timestamp() %}
             {% for item in raw_passcodes %}
@@ -147,7 +147,7 @@ sequence:
                 {% endif %}
               {% endif %}
             {% endfor %}
-            {{ ns.ids }}
+            {{ ns.ids | to_json }}
 
       # Удаление найденных истёкших паролей по очереди
       - repeat:
